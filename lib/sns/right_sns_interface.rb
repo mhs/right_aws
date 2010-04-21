@@ -4,16 +4,14 @@ module RightAws
     
     API_VERSION       = "2010-03-31"
     DEFAULT_HOST      = "sns.us-east-1.amazonaws.com" #TODO find the generic endpoint
-    DEFAULT_PORT      = 80
-    DEFAULT_PROTOCOL  = 'http'
-    # REQUEST_TTL       = 30
-    # DEFAULT_VISIBILITY_TIMEOUT = 30
+    DEFAULT_PORT      = 443
+    DEFAULT_PROTOCOL  = 'https'
     
     @@bench = AwsBenchmarkingBlock.new
     def self.bench_xml
       @@bench.xml
     end
-    def self.bench_sqs
+    def self.bench_sns
       @@bench.service
     end
 
@@ -38,13 +36,6 @@ module RightAws
 
     # Generates a request hash for the query API
     def generate_request(action, param={})  # :nodoc:
-      # For operation requests on a queue, the queue URI will be a parameter,
-      # so we first extract it from the call parameters.  Next we remove any
-      # parameters with no value or with symbolic keys.  We add the header
-      # fields required in all requests, and then the headers passed in as
-      # params.  We sort the header fields alphabetically and then generate the
-      # signature before URL escaping the resulting query and sending it.
-      # service = param[:queue_url] ? URI(param[:queue_url]).path : '/'
       param.each{ |key, value| param.delete(key) if (value.nil? || key.is_a?(Symbol)) }
       service_hash = { "Action"           => action,
                        "AWSAccessKeyId"   => @aws_access_key_id }
@@ -60,27 +51,7 @@ module RightAws
 
     # TODO port this over to sns from sqs
     # def generate_post_request(action, param={})  # :nodoc:
-    #   service = param[:queue_url] ? URI(param[:queue_url]).path : '/'
-    #   message   = param[:message]                # extract message body if nesessary
-    #   param.each{ |key, value| param.delete(key) if (value.nil? || key.is_a?(Symbol)) }
-    #   service_hash = { "Action"           => action,
-    #                    "Expires"          => (Time.now + REQUEST_TTL).utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    #                    "AWSAccessKeyId"   => @aws_access_key_id,
-    #                    "MessageBody"      => message,
-    #                    "Version"          => API_VERSION }
-    #   service_hash.update(param)
-    #   #
-    #   service_params = signed_service_params(@aws_secret_access_key, service_hash, :post, @params[:server], service)
-    #   request        = Net::HTTP::Post.new(AwsUtils::URLencode(service))
-    #   request['Content-Type'] = 'application/x-www-form-urlencoded' 
-    #   request.body = service_params
-    #     # prepare output hash
-    #   { :request  => request, 
-    #     :server   => @params[:server],
-    #     :port     => @params[:port],
-    #     :protocol => @params[:protocol] }
     # end
-
 
     # Sends request to Amazon and parses the response
     # Raises AwsError if any banana happened
@@ -122,8 +93,11 @@ module RightAws
       on_exception
     end
     
-    def get_topic_attributes
-      raise "todo"
+    def get_topic_attributes(topic_arn)
+      req_hash = generate_request('GetTopicAttributes', 'TopicArn' => topic_arn)
+      request_info(req_hash, SnsGetTopicAttributesParser.new(:logger => @logger))
+    rescue
+      on_exception
     end
     
     def list_subscriptions(next_token = nil)
@@ -158,9 +132,16 @@ module RightAws
     def remove_permission
       raise "todo"
     end
-    
-    def set_topic_attributes
-      raise "todo"
+
+    # Set an attribute for the topic.
+    # Note that Amazon called the api SetTopicAttributes (plural) but
+    # it's really singular in the current API.
+    def set_topic_attributes(topic_arn, attr_name, attr_value)
+      req_hash = generate_request('SetTopicAttributes', 'TopicArn' => topic_arn,
+                                  'AttributeName' => attr_name, 'AttributeValue' => attr_value)
+      request_info(req_hash, SnsStatusParser.new(:logger => @logger))
+    rescue
+      on_exception
     end
     
     def subscribe(topic_arn, protocol, endpoint)
@@ -201,7 +182,20 @@ module RightAws
     def tagend(name)
       @result = @text if name == 'MessageId'
     end
-  end  
+  end
+  
+  class SnsGetTopicAttributesParser < RightAWSParser # :nodoc:
+    def reset
+      @result = {}
+    end
+    
+    def tagend(name)
+      case name 
+        when 'key' then @current_attribute = @text
+        when 'value' then @result[@current_attribute] = @text
+      end
+    end
+  end
   
   # Subscription parsers
 

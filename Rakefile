@@ -1,6 +1,7 @@
 # -*- ruby -*-
 
 require 'rubygems'
+gem 'hoe', '=2.5.0'
 require 'hoe'
 require "rake/testtask"
 require 'rcov/rcovtask'
@@ -21,11 +22,11 @@ class Hoe
   end
 end
 
-Hoe.new('right_aws', RightAws::VERSION::STRING) do |p|
+Hoe.new('mhs-right_aws', RightAws::VERSION::STRING) do |p|
   p.rubyforge_name = 'rightaws'
   p.author = 'RightScale, Inc.'
   p.email = 'support@rightscale.com'
-  p.summary = 'Interface classes for the Amazon EC2, SQS, and S3 Web Services'
+  p.summary = 'Interface classes for the Amazon EC2, SQS, and S3 Web Services and also experimental SNS support'
   p.description = p.paragraphs_of('README.txt', 2..5).join("\n\n")
   p.url = p.paragraphs_of('README.txt', 0).first.split(/\n/)[1..-1]
   p.changes = p.paragraphs_of('History.txt', 0..1).join("\n\n")
